@@ -11,15 +11,15 @@ locals {
       users        = ["ITuser-1", "ITuser-2", "ITuser-3"]
     }
     Finance = {
-      display_name = "Finance"
+      display_name = "FinanceTeam"
       description  = "Finance Team - Inherits Billing Administrator role"
-      role_name    = "Billing Reader" # Note: Azure RBAC subscription-level billing role; see note below
+      role_name    = "Billing Administrator"
       users        = ["Financeuser-1", "Financeuser-2", "Financeuser-3"]
     }
     Admin = {
       display_name = "Admin"
       description  = "Admin Team - Inherits Virtual Machine Reader role"
-      role_name    = "Virtual Machine Reader" # Custom or built-in Reader scoped to VMs
+      role_name    = "Virtual Machine Reader" # Custom least-privilege role scoped to VMs
       users        = ["Adminuser-1", "Adminuser-2", "Adminuser-3"]
     }
   }
@@ -35,17 +35,18 @@ locals {
   ]...)
 }
 
-# 1. Create the 3 Entra ID Security Groups
+# Creating the 3 Entra ID Security Groups
 resource "azuread_group" "teams" {
   for_each = local.groups
 
-  display_name     = each.value.display_name
-  description      = each.value.description
-  security_enabled = true
-  mail_enabled     = false
+  display_name       = each.value.display_name
+  description        = each.value.description
+  security_enabled   = true
+  mail_enabled       = false
+  assignable_to_role = each.key == "Finance" ? true : false
 }
 
-# 2. Generate secure initial passwords for each of the 9 users
+# Generating secure initial passwords for each of the 9 users
 resource "random_password" "user_passwords" {
   for_each = local.all_users
 
@@ -58,7 +59,7 @@ resource "random_password" "user_passwords" {
   min_special      = 2
 }
 
-# 3. Create the 9 Entra ID Users (3 per group)
+# Creating the 9 Entra ID Users (3 users per group)
 resource "azuread_user" "team_users" {
   for_each = local.all_users
 
@@ -70,7 +71,7 @@ resource "azuread_user" "team_users" {
   account_enabled       = true
 }
 
-# 4. Add each user to their respective group
+# Adding each user to their respective group
 resource "azuread_group_member" "team_memberships" {
   for_each = local.all_users
 
@@ -78,8 +79,8 @@ resource "azuread_group_member" "team_memberships" {
   member_object_id = azuread_user.team_users[each.key].object_id
 }
 
-# 5. Assign Azure RBAC Roles to the Groups at the Subscription Scope
-# Note: Any future user added to these groups automatically inherits these roles.
+# Assign Azure RBAC Roles to the Groups at the Subscription Scope
+# Any future user added to these groups automatically inherits these roles.
 
 # IT Group -> Virtual Machine Contributor
 resource "azurerm_role_assignment" "it_vm_contributor" {
@@ -88,8 +89,7 @@ resource "azurerm_role_assignment" "it_vm_contributor" {
   principal_id         = azuread_group.teams["IT"].object_id
 }
 
-# Admin Group -> Virtual Machine Reader (Built-in role in Azure is "Reader" or "Virtual Machine Data Access Administrator";
-# creating a dedicated custom role or using built-in "Reader" ensures exact least-privilege VM read access)
+# Admin Group -> Virtual Machine Reader (Customised to the least privilege role scoped to VMs)
 resource "azurerm_role_definition" "vm_reader_custom" {
   name        = "Virtual Machine Reader"
   scope       = data.azurerm_subscription.primary.id
@@ -119,7 +119,7 @@ resource "azurerm_role_assignment" "admin_vm_reader" {
   principal_id       = azuread_group.teams["Admin"].object_id
 }
 
-
+# Finance Group -> Billing Administrator (Entra ID Directory Role)
 resource "azuread_directory_role" "billing_admin" {
   display_name = "Billing Administrator"
 }
