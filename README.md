@@ -11,7 +11,7 @@ This Terraform configuration automates:
    - **Admin** -> `Virtual Machine Reader` (Custom least-privilege Azure RBAC role for VM read access)
    - **Finance** -> `Billing Administrator` (Entra ID Directory Role, requires role-assignable group; note below)
 
-## Important Notes Before Running
+## Important Notes Before starting this project
 
 ### 1. Required Permissions
 The user or Service Principal running Terraform needs:
